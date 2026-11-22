@@ -48,7 +48,7 @@
     {
       "folder": "1 Timed swaps",
       "open": false,
-      "intro": "After coming across an alien device drifting through space, scientists testing the device accidently activated it. In the easiest of terms, the resolution of the world keeps reducing every few seconds. Not only does it change the perceived reality, it's altering reality on a fundamental level, changing every aspect of how the world operates! \n\nTake caution to not get caught in a wall or hazardous place when reality returns to normal.",
+      "intro": "After coming across an alien device drifting through space, scientists testing the device accidentally activated it. In the simplest terms, the resolution of the world keeps reducing every few seconds. Not only does it change the perceived reality, it's altering reality on a fundamental level, changing every aspect of how the world operates!\n\nTake caution to not get caught in a wall or hazardous place when reality returns to normal.",
       "levels": [
         "timed-swaps",
         "timed-ladder-intro",
@@ -85,7 +85,7 @@
     {
       "folder": "5 Kiosks",
       "open": false,
-      "intro": "The scientist were able to create their own device to alter reality all around us.",
+      "intro": "The scientists were able to create their own device to alter reality all around us.",
       "levels": [
         "box-4",
         "box-4-copy"
