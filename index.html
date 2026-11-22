@@ -87,12 +87,12 @@
   }
   /* A story screen: the folder's text, over everything, until a key or a tap. */
   #story {
-    display: none; position: fixed; inset: 0; z-index: 6; flex-direction: column; align-items: center; justify-content: center; gap: 2em;
-    padding: 24px; box-sizing: border-box; background: #000; text-align: center; touch-action: none; overflow: hidden;
+    display: none; position: fixed; inset: 0; z-index: 6; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em;
+    padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); box-sizing: border-box; background: #000; text-align: center; touch-action: none; overflow: hidden;
   }
-  /* (sized by the smaller of the screen's width and height, so a long text still fits a phone held sideways) */
-  #story-text { max-width: 30em; font: bold clamp(13px, min(3vw, 4.6vh), 28px)/1.45 monospace; color: #fff; white-space: pre-wrap; }
-  #story-go { font: bold clamp(11px, 1.6vw, 15px) monospace; color: rgba(255, 255, 255, 0.55); animation: pulse 0.9s ease-in-out infinite alternate; }
+  /* (the size here is the largest; game.js makes the text smaller until the whole screen, with the line below it, fits) */
+  #story-text { max-width: min(100%, 38em); font: bold clamp(13px, min(3vw, 4.6vh), 28px)/1.4 monospace; color: #fff; white-space: pre-wrap; }
+  #story-go { flex: none; font: bold clamp(11px, 1.6vw, 15px) monospace; color: rgba(255, 255, 255, 0.55); animation: pulse 0.9s ease-in-out infinite alternate; }
   #menu {
     display: none; position: fixed; inset: 0; z-index: 5; align-items: center; justify-content: center;
     background: rgba(0, 0, 0, 0.75);

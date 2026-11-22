@@ -175,12 +175,22 @@ async function main() {
   // of the game, finishing the level before it, picking it in the menu), not when the room restarts.
   const storyEl = document.getElementById('story'), storyText = document.getElementById('story-text');
   let storyOpen = false, storyAt = 0, storyRoom = -1;
+  // The text is made smaller, a pixel at a time, until the screen holds all of it and the "tap to continue" line (a phone held
+  // sideways in a browser has little height). Done again when the screen changes size or is turned.
+  const fitStory = () => {
+    if (storyEl.style.display !== 'flex') return;
+    storyText.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(storyText).fontSize);
+    while (size > 8 && storyEl.scrollHeight > storyEl.clientHeight) storyText.style.fontSize = `${--size}px`;
+  };
+  window.addEventListener('resize', fitStory);
   const openStory = (room) => {
     const text = folderIntro(index, room);
     if (!text) return;
     storyText.textContent = text;
     storyEl.style.display = 'flex';
     storyOpen = true; storyAt = performance.now();
+    fitStory();
     actions.releaseAll(); slider.cancel();
   };
   const closeStory = () => {
