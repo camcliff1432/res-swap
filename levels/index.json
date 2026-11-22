@@ -1,0 +1,155 @@
+{
+  "levels": [
+    "timed-swaps",
+    "timed-ladder-intro",
+    "timed-swaps-ladder",
+    "23-wave",
+    "23-wave-copy",
+    "22-window",
+    "22-window-copy",
+    "25-grenade",
+    "26-pixelate",
+    "box-4",
+    "box-4-copy",
+    "27-limited-swaps",
+    "01-spikes",
+    "02-thin-wall-copy",
+    "03-thin-bridge",
+    "02-thin-wall",
+    "02-thin-wall-copy-2",
+    "04-overhang",
+    "05-button-door",
+    "06-ball",
+    "07-combination",
+    "08-long-walk",
+    "09-ladder",
+    "10-laser",
+    "11-chain",
+    "12-key",
+    "13-thin-ramp",
+    "14-pillars",
+    "15-big-spikes",
+    "16-grating",
+    "17-small-crates",
+    "18-spring",
+    "19-platform",
+    "20-geared",
+    "21-blade",
+    "slider-cactus",
+    "slider-test",
+    "slider-test-2",
+    "slider-test-3",
+    "slider-walls",
+    "slider-climb",
+    "slider-gauntlet",
+    "slider-maze"
+  ],
+  "tree": [
+    {
+      "folder": "1 Timed swaps",
+      "open": false,
+      "intro": "After coming across an alien device drifting through space, scientists testing the device accidently activated it. In the easiest of terms, the resolution of the world keeps reducing every few seconds. Not only does it change the perceived reality, it's altering reality on a fundamental level, changing every aspect of how the world operates! \n\nTake caution to not get caught in a wall or hazardous place when reality returns to normal.",
+      "levels": [
+        "timed-swaps",
+        "timed-ladder-intro",
+        "timed-swaps-ladder"
+      ]
+    },
+    {
+      "folder": "2 Waves",
+      "open": false,
+      "intro": "The scientists have begun to understand how the operate the device. They have altered the device's settings to limit the changes to reality to controlled waves.",
+      "levels": [
+        "23-wave",
+        "23-wave-copy"
+      ]
+    },
+    {
+      "folder": "3 Windows",
+      "open": false,
+      "intro": "The scientists fully understand the alien device's mechanisms and have constrained the rips in reality to small windows.",
+      "levels": [
+        "22-window",
+        "22-window-copy"
+      ]
+    },
+    {
+      "folder": "4 Grenades",
+      "open": false,
+      "intro": "The scientists have reverse engineered the technology and created resolution grenades to alter reality in bursts.",
+      "levels": [
+        "25-grenade",
+        "26-pixelate"
+      ]
+    },
+    {
+      "folder": "5 Kiosks",
+      "open": false,
+      "intro": "The scientist were able to create their own device to alter reality all around us.",
+      "levels": [
+        "box-4",
+        "box-4-copy"
+      ]
+    },
+    {
+      "folder": "6 Limited swaps",
+      "open": false,
+      "intro": "The scientists have created a mobile resolution swapper, but its batteries hold limited power.",
+      "levels": [
+        "27-limited-swaps"
+      ]
+    },
+    {
+      "folder": "7 Controlled swaps",
+      "open": false,
+      "intro": "The scientists are learning more about how reality is woven. The mobile device can now use the energies inherent in the fabric of reality to power itself for unlimited resolution swapping.",
+      "levels": [
+        "01-spikes",
+        "02-thin-wall-copy",
+        "03-thin-bridge",
+        "02-thin-wall",
+        "02-thin-wall-copy-2",
+        "04-overhang",
+        "05-button-door",
+        "06-ball",
+        "07-combination",
+        "08-long-walk",
+        "09-ladder",
+        "10-laser",
+        "11-chain",
+        "12-key",
+        "13-thin-ramp",
+        "14-pillars",
+        "15-big-spikes",
+        "16-grating",
+        "17-small-crates",
+        "18-spring",
+        "19-platform",
+        "20-geared",
+        "21-blade"
+      ]
+    },
+    {
+      "folder": "8 Alien Plants",
+      "open": false,
+      "intro": "Messing with reality has had some consequences. Plants that feed on the energy used to swap reality have begun to grow all over the world.",
+      "levels": [
+        "slider-cactus"
+      ]
+    },
+    {
+      "folder": "9 Slider",
+      "open": false,
+      "intro": "Scientists have surpassed the abilities of the alien technology and have gained access to new layers of reality.",
+      "levels": [
+        "slider-test",
+        "slider-test-2",
+        "slider-test-3",
+        "slider-walls",
+        "slider-climb",
+        "slider-gauntlet",
+        "slider-maze"
+      ]
+    }
+  ]
+}

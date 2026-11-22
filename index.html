@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="manifest" href="src/pwa/game.webmanifest">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="src/pwa/game-192.png">
+<title>res-swap</title>
+<style>
+  * { touch-action: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #000;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; overscroll-behavior: none;
+    font-family: monospace; color: #fff;
+  }
+  :root { --gutter-l: 0px; --gutter-r: 0px; }
+  #stage {
+    position: fixed; inset: 0; box-sizing: border-box;
+    padding: 0 var(--gutter-r) 0 var(--gutter-l);
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* The picture box: 16:9, as large as fits between the gutters. The canvas fills it. */
+  #picture {
+    position: relative; flex: none; background: #000;
+    width: min(100vw - var(--gutter-l) - var(--gutter-r), 100vh * 16 / 9);
+    height: min(100vh, (100vw - var(--gutter-l) - var(--gutter-r)) * 9 / 16);
+  }
+  #picture canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #view { image-rendering: pixelated; }
+  #hud { position: absolute; left: 8px; top: 8px; pointer-events: none; }
+  #mode {
+    display: inline-block; padding: 2px 6px;
+    font: bold 14px monospace; color: #fff; background: rgba(0, 0, 0, 0.5);
+  }
+  #mode.wait { animation: pulse 0.5s ease-in-out infinite alternate; }
+  /* Limited swaps: a counter at the top middle of the picture: the number left, one pip per swap of the level (hollow once
+     used), and the words. It jumps when a swap is spent and turns red at none. */
+  #swaps {
+    display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); align-items: center; gap: 8px;
+    padding: 0.3em 0.7em; font: bold clamp(13px, 2.1vw, 24px) monospace; color: #fff; background: rgba(0, 0, 0, 0.65); border: 2px solid #F8B800;
+    pointer-events: none; white-space: nowrap;
+  }
+  #swaps-n { font-size: 2em; line-height: 1; color: #F8B800; }
+  #swaps-pips i { display: inline-block; width: 0.75em; height: 0.75em; margin: 0 0.15em; box-sizing: border-box; background: #F8B800; border: 2px solid #F8B800; }
+  #swaps-pips i.used { background: transparent; opacity: 0.55; }
+  #swaps.empty { border-color: #F83800; }
+  #swaps.empty #swaps-n { color: #F83800; }
+  #swaps.empty #swaps-pips i { border-color: #F83800; }
+  #swaps.pop { animation: swaps-pop 0.4s ease-out; }
+  /* Timed swaps: the same box at the top middle: the seconds left (big), what the room is about to become, and a bar along the
+     bottom that empties over the interval. Red in the last second; it pulses while the swap is held back. */
+  #timer {
+    display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); align-items: center; gap: 0.6em;
+    padding: 0.3em 0.7em 0.45em; font: bold clamp(13px, 2.1vw, 24px) monospace; color: #fff; background: rgba(0, 0, 0, 0.65);
+    border: 2px solid #3CBCFC; pointer-events: none; white-space: nowrap; overflow: hidden;
+  }
+  #timer-n { font-size: 2em; line-height: 1; min-width: 1.2em; text-align: center; color: #3CBCFC; }
+  #timer-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0.22em; background: rgba(255, 255, 255, 0.2); }
+  #timer-bar i { display: block; height: 100%; width: 100%; background: #3CBCFC; transform-origin: left; }
+  #timer.soon { border-color: #F83800; }
+  #timer.soon #timer-n { color: #F83800; }
+  #timer.soon #timer-bar i { background: #F83800; }
+  #timer.wait { animation: pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes swaps-pop { from { transform: translateX(-50%) scale(1.6); } to { transform: translateX(-50%) scale(1); } }
+  #btn-swap { white-space: pre-line; text-align: center; line-height: 1.1; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: 0.35; } }
+  /* Timed levels: a thin bar under the label that empties over the swap interval. */
+  #bar { display: none; height: 3px; margin-top: 2px; background: rgba(0, 0, 0, 0.5); }
+  #bar i { display: block; height: 100%; width: 100%; background: #fff; transform-origin: left; }
+  #flash { position: absolute; inset: 0; background: #f00; opacity: 0; pointer-events: none; }
+  #message {
+    display: none; position: absolute; max-width: 80vw; padding: 1em; box-sizing: border-box;
+    left: calc(var(--gutter-l) + (100% - var(--gutter-l) - var(--gutter-r)) / 2); top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px; white-space: pre-wrap; text-align: center; background: rgba(0, 0, 0, 0.7);
+  }
+  /* Level menu: a MENU button (top-left on touch, in the empty left gutter; top-right on a PC) and an overlay with a scrolling list. */
+  #btn-menu {
+    position: fixed; z-index: 4; box-sizing: border-box; margin: 0; padding: 0 8px; height: 28px;
+    top: 6px; right: 6px; font: bold 12px monospace; color: #fff;
+    background: rgba(255, 255, 255, 0.18); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 8px;
+  }
+  /* A story screen: the folder's text, over everything, until a key or a tap. */
+  #story {
+    display: none; position: fixed; inset: 0; z-index: 6; flex-direction: column; align-items: center; justify-content: center; gap: 2em;
+    padding: 24px; box-sizing: border-box; background: #000; text-align: center; touch-action: none; overflow: hidden;
+  }
+  /* (sized by the smaller of the screen's width and height, so a long text still fits a phone held sideways) */
+  #story-text { max-width: 30em; font: bold clamp(13px, min(3vw, 4.6vh), 28px)/1.45 monospace; color: #fff; white-space: pre-wrap; }
+  #story-go { font: bold clamp(11px, 1.6vw, 15px) monospace; color: rgba(255, 255, 255, 0.55); animation: pulse 0.9s ease-in-out infinite alternate; }
+  #menu {
+    display: none; position: fixed; inset: 0; z-index: 5; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+  }
+  #menu-panel {
+    display: flex; flex-direction: column; box-sizing: border-box;
+    width: min(420px, 100vw - 32px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+    background: #000; border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 8px;
+  }
+  #menu-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 14px; font: bold 16px monospace; }
+  #menu-close {
+    width: 44px; height: 44px; font: bold 20px monospace; color: #fff;
+    background: rgba(255, 255, 255, 0.18); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 8px;
+  }
+  /* The one place that scrolls: its touch events are left alone (see the script below) and it may pan vertically. */
+  #menu-list, #menu-list * { touch-action: pan-y; }
+  #menu-list { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 8px 10px; }
+  .menu-folder { padding: 12px 6px 4px; font: bold 13px monospace; color: rgba(255, 255, 255, 0.55); text-transform: uppercase; }
+  .menu-level {
+    display: block; width: 100%; min-height: 48px; margin: 3px 0; padding: 0 12px; box-sizing: border-box; text-align: left;
+    font: 16px monospace; color: #fff; background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.25); border-radius: 8px; user-select: none; -webkit-user-select: none;
+  }
+  .menu-level.current { background: rgba(255, 255, 255, 0.3); border-color: #fff; }
+  .menu-level.current::before { content: "> "; }
+  .menu-level.cursor { outline: 2px solid #fff; outline-offset: 1px; }
+  .touch, #rotate, #stick-zone { display: none; }
+  /* The resolution slider on a PC: a strip at the right edge, centred, with the picture shrunk to leave it room (slider levels only).
+     On a touch screen the same element sits in the right column instead (the coarse-pointer block below). */
+  #slider { position: fixed; z-index: 2; right: 12px; top: 50%; width: 76px; height: 220px; margin-top: -110px; }
+  @media not all and (pointer: coarse) { body.has-slider { --gutter-r: 100px; } }
+  @media (pointer: coarse) {
+    /* Side gutters hold the buttons so they never cover the picture. Left: a 168px gutter kept empty
+       (the floating stick covers the left half of the screen). Right: one 72px column + 2 x 12px = 96px (JUMP and SWAP stacked
+       at 12 / 96px from the bottom, restart at the top). The stack is 168px tall, so it
+       fits a 375px phone with the 44px restart button above it. */
+    :root {
+      --gutter-l: calc(168px + env(safe-area-inset-left, 0px));
+      --gutter-r: calc(96px + env(safe-area-inset-right, 0px));
+    }
+    /* The floating stick: the left half of the screen, under the buttons. A ring and knob show only while a finger is down. */
+    #stick-zone { display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 50vw; z-index: 1; touch-action: none; }
+    .touch {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; box-sizing: border-box; z-index: 2;
+      min-width: 72px; min-height: 72px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 14px; color: #fff; font: bold 18px monospace;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+    }
+    #btn-jump { right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+    #btn-swap { right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    /* A slider level has no SWAP: the resolution slider (src/sliderView.js) takes the column between restart (44px + 8px from the
+       top) and JUMP (72px + 12px from the bottom), 8px and 12px clear of each. 76px wide in the 96px gutter; 204px tall on a 360px phone. */
+    #slider {
+      right: calc(10px + env(safe-area-inset-right, 0px)); width: 76px; margin: 0;
+      top: calc(60px + env(safe-area-inset-top, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); height: auto;
+    }
+    /* THROW sits above SWAP and shows only while grenades are held: 180 + 72 = 252px, under the 44px restart button on a 375px phone. */
+    #btn-throw { right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(180px + env(safe-area-inset-bottom, 0px)); }
+    #btn-restart {
+      min-width: 44px; min-height: 44px; width: 44px; height: 44px; font-size: 22px;
+      top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px));
+    }
+    /* MENU: top-left, in the empty left gutter (168px) and clear of the HUD label, the right column, and both thumbs' places. */
+    #btn-menu {
+      width: 64px; height: 40px; min-width: 0; min-height: 0; font-size: 14px;
+      top: calc(8px + env(safe-area-inset-top, 0px)); left: calc(8px + env(safe-area-inset-left, 0px)); right: auto;
+    }
+  }
+  @media (pointer: coarse) and (orientation: portrait) {
+    #rotate {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; inset: 0; z-index: 10; background: #000; color: #fff;
+      font: bold 24px monospace; text-align: center;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="picture">
+    <canvas id="view" width="256" height="144"></canvas>
+    <div id="hud"><div id="mode">8-BIT</div><div id="bar"><i></i></div></div>
+    <div id="timer"><span id="timer-n"></span><span id="timer-word"></span><div id="timer-bar"><i></i></div></div>
+    <div id="swaps"><span id="swaps-n"></span><span id="swaps-pips"></span><span id="swaps-word"></span></div>
+    <div id="flash"></div>
+  </div>
+  <div id="message"></div>
+</div>
+<div id="stick-zone"></div>
+<button class="touch" id="btn-swap" data-action="swap">SWAP</button>
+<button class="touch" id="btn-throw" data-action="throw" style="display:none">THROW</button>
+<div id="slider" style="display:none"></div>
+<button class="touch" id="btn-jump" data-action="jump">JUMP</button>
+<button class="touch" id="btn-restart" data-action="restart">↻</button>
+<button id="btn-menu">MENU</button>
+<div id="story"><div id="story-text"></div><div id="story-go">PRESS ANY KEY OR TAP TO CONTINUE</div></div>
+<div id="menu"><div id="menu-panel"><div id="menu-head"><span>LEVELS</span><button id="menu-close">X</button></div><div id="menu-list"></div></div></div>
+<div id="rotate">Rotate your phone</div>
+<script>
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  // iOS Safari ignores user-scalable=no; cancelling these stops double-tap and pinch zoom.
+  for (const type of ['touchstart', 'touchend', 'touchmove', 'gesturestart', 'gesturechange', 'dblclick']) {
+    // The menu's list must scroll and its rows must click, so touches inside the menu are left alone.
+    document.addEventListener(type, (e) => { if (!(e.target.closest && e.target.closest('#menu'))) e.preventDefault(); }, { passive: false });
+  }
+</script>
+<script type="module" src="src/game.js"></script>
+</body>
+</html>
