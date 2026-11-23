@@ -1,4 +1,4 @@
-import { attachStick } from './stick.js';
+import { attachDpad } from './dpad.js';
 
 const KEYS = {
   ArrowLeft: 'left', KeyA: 'left',
@@ -52,7 +52,7 @@ export function attachInput(actions, root) {
   for (const type of ['pointerup', 'pointercancel']) root.addEventListener(type, (e) => { if (e.pointerType === 'mouse') actions.release('swap', 'mouse'); });
 
   const stickZone = root.getElementById ? root.getElementById('stick-zone') : null;
-  if (stickZone) attachStick(stickZone, actions);
+  if (stickZone) attachDpad(stickZone, actions);
 
   win.addEventListener('blur', () => actions.releaseAll());
   root.addEventListener('visibilitychange', () => {

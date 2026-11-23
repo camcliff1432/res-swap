@@ -266,7 +266,7 @@ ${swaps}` : 'SWAP';
           if (tickSecond <= 3 && !out.restarted) tick();
         }
       }
-      look.update(sim.world, dt / 1000);
+      look.update(sim.world, dt / 1000, sim.player);
       present();
       slider.frame(sim, dt / 1000);
     } finally {

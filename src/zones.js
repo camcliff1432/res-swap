@@ -198,7 +198,7 @@ const pictureMode = (world, t) => (world.res ? (thingStep(world, t) === 1 ? 'low
 // picture of the mode it lives in; static things are in both pictures (the compositor shows each only where its mode is).
 // A forced-low thing is drawn by neither picture: the compositor draws it on top, in its low-res look (grenadeDraw.js).
 export function drawnIn(world, t, mode) {
-  if (t.forceLow) return false;
+  if (t.forceLow || t.easeHide) return false;      // (easeHide: left out for one drawing, edgeBands.js)
   if (!zoned(world)) return true;
   if (t.type !== undefined && t.type !== 'smallcrate' && !t.alt) return true;
   return pictureMode(world, t) === mode;
@@ -212,7 +212,7 @@ export function drawnIn(world, t, mode) {
 //   prop with an `alt` box (platform, blade): a shallow copy at its alt box. Never changes the real thing.
 // Without zones this is exactly drawnIn: the thing, or nothing.
 export function looksIn(world, t, mode) {
-  if (t.forceLow) return [];
+  if (t.forceLow || t.easeHide) return [];
   if (drawnIn(world, t, mode)) return [t];
   if (!hasZones(world)) return [];
   if (t.type === 'smallcrate') {

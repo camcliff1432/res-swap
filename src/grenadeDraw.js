@@ -10,6 +10,8 @@ import { NES } from './sprites8.js';
 import { PROPS } from './props/index.js';
 import { CRATE_SIZE, BALL_SIZE } from './constants.js';
 import { eachMover } from './zones.js';
+import { drawCrate, drawBall8 } from './render8.js';
+import { easeSprite } from './easeSprite.js';
 
 const W = VIEW_W * PX8, H = VIEW_H * PX8;
 const px = (v) => Math.round(v * PX8);
@@ -88,29 +90,38 @@ function drawHeld(ctx, world) {
 // Things a "things" grenade made low-res for good: the pictures do not draw them (zones.js), so they are drawn here, on top,
 // always in their plain low-res look (a flat block), exactly like any low-res thing: no marking (the user's choice; only the
 // grenade's circle gets a coloured ring).
-function drawForcedLow(ctx, world, ox, oy) {
+function drawForcedLow(ctx, world, ox, oy, look) {
   eachMover(world, (t) => {
-    if (!t.forceLow) return;
+    const p = look && look.thingEase ? look.thingEase(world, t) : null;
+    if (!t.forceLow && p === null) return;                    // (a thing that is not forced is drawn here only while it eases)
     const isCrate = world.crates.includes(t), isBall = world.balls.includes(t);
     const w = isCrate ? CRATE_SIZE : isBall ? BALL_SIZE : t.w, h = isCrate ? CRATE_SIZE : isBall ? BALL_SIZE : t.h;
     const x = px(t.x), y = px(t.y), pw = px(w), ph = px(h);
     if (x + pw <= ox || x >= ox + W || y + ph <= oy || y >= oy + H) return;
-    ctx.save();
-    ctx.translate(-ox, -oy);
-    if (isCrate || isBall) {
-      ctx.fillStyle = isCrate ? NES.crateMid : NES.ballMid;
-      ctx.fillRect(x, y, pw, ph);
-    } else {
-      const def = PROPS[t.type];
-      if (def && def.drawLow) def.drawLow(ctx, t, world);
-    }
-    ctx.restore();
+    const def = isCrate || isBall ? null : PROPS[t.type];
+    const low = () => {
+      ctx.save();
+      ctx.translate(-ox, -oy);
+      if (isCrate || isBall) {
+        ctx.fillStyle = isCrate ? NES.crateMid : NES.ballMid;
+        ctx.fillRect(x, y, pw, ph);
+      } else if (def && def.drawLow) def.drawLow(ctx, t, world);
+      ctx.restore();
+    };
+    // Just pixelated: its picture eases from its 8-bit look to the block (sliderLook.js thingEase, easeSprite.js).
+    if (p === null) { low(); return; }
+    const size = Math.ceil((Math.max(pw, ph) + 2 * PX8) / PX8) * PX8, sx = x - PX8, sy = y - PX8;
+    easeSprite(ctx, p, sx - ox, sy - oy, size, (s) => {
+      if (isCrate) drawCrate(s, { ...t, tilt: 0 }, sx, sy);
+      else if (isBall) drawBall8(s, t, sx, sy);
+      else if (def && def.draw8) { s.save(); s.translate(-sx, -sy); def.draw8(s, t, world); s.restore(); }
+    }, low);
   });
 }
 
-export function drawGrenades(ctx, world, cam = { x: 0, y: 0 }) {
+export function drawGrenades(ctx, world, cam = { x: 0, y: 0 }, look = null) {
   const ox = px(cam.x), oy = px(cam.y);
-  drawForcedLow(ctx, world, ox, oy);
+  drawForcedLow(ctx, world, ox, oy, look);
   for (const z of world.gzones || []) if (z.applied) drawArea(ctx, z, ox, oy);
   for (const g of world.flying || []) drawFlying(ctx, world, g, ox, oy);
   if (world.held) drawHeld(ctx, world);

@@ -14,10 +14,13 @@
 //   look.view(world)          what to draw now: { step } at rest, { fine, coarse, p, blur, firm } during a move, null (no slider)
 import { STEPS } from './slider.js';
 import { wins } from './vote.js';
+import { hasZones, ensureModes, eachMover, modeOfBox } from './zones.js';
+import { PLAYER_W, PLAYER_H } from './constants.js';
 
 export const TOTAL = 0.34;          // seconds for one notch
 export const BLUR_SHARE = 0.5;      // the share of a notch spent blurring; the rest is firming up
 export const MAX_DT = 0.05;         // a frame later than this (a hidden tab) counts as this much
+export const SWAP_TOTAL = 0.42;     // seconds for the picture of a swap (8-bit <-> low-res, a level without the slider) to ease
 export const CATCH_UP = 2;          // each notch waiting behind the one playing speeds it up by this much
 
 // Where the blocks of `size` pixels fall for a view whose top-left is at level pixel `o` on one axis: the level pixel of the
@@ -61,6 +64,15 @@ const idx = (step) => STEPS.indexOf(step);
 
 export function createLook() {
   let world = null, target = null, cur = null, queue = [];
+  // A level with zones (windows, the wave, grenade areas): how far each tile's picture is, 0 = 8-bit to 1 = low-res, and how many are on their way.
+  let tiles = null, moving = 0;
+  // Single figures: the things a "things" grenade made low-res for good, and the player it caught: { m, p },
+  // m the look it is going to (0 = 8-bit, 1 = low-res), p how far its picture is.
+  let things = new WeakMap(), pl = null;
+  // The movable things as they were on the last frame before a swap ({ crates, balls, props }, copies): the swap moves some at once (a crate
+  // snaps to the grid, a platform goes to its low-res place), and the picture it eases FROM must show them where they were.
+  let last = null;
+  let mode = null, swap = null;       // a level without the slider: the mode the picture follows, and { p } while a swap eases (0 = 8-bit, 1 = low-res)
   // cur: { from, to, t } a notch in progress, t 0..1 along it; queue: the steps still to come after it (each one notch on)
 
   function snap(w) {
@@ -68,6 +80,33 @@ export function createLook() {
     target = w && w.slider ? w.slider.step : null;
     cur = null;
     queue = [];
+    mode = w && !w.slider ? w.mode : null;
+    swap = null;
+    tiles = null; moving = 0;
+    things = new WeakMap(); pl = null;
+    last = null;
+  }
+
+  const copyThings = (w) => ({ crates: w.crates.map((c) => ({ ...c })), balls: w.balls.map((b) => ({ ...b })), props: w.props.map((p) => (p.alt ? { ...p, alt: { ...p.alt } } : { ...p })) });
+
+  // The single figures follow their looks (a level without the slider or stepped areas).
+  function follow(w, dt, player) {
+    if (!Array.isArray(w.crates)) return;                     // (not a whole world: nothing to follow)
+    const d = Math.min(Math.max(dt, 0), MAX_DT) / SWAP_TOTAL;
+    const move = (rec, m) => {
+      rec.m = m;
+      if (rec.p !== m) rec.p = m > rec.p ? Math.min(1, rec.p + d) : Math.max(0, rec.p - d);
+      return rec;
+    };
+    const base = w.mode === 'low' ? 1 : 0;
+    eachMover(w, (t) => {
+      if (t.forceLow) things.set(t, move(things.get(t) ?? { m: 1, p: base }, 1));
+    });
+    // The player an orange grenade caught looks low-res for good (world.js pixelateThings): his figure eases there from the look he had.
+    // (Crossing a zone's edge is not eased in time: edgeBands.js changes the part of him that is going in.)
+    if (!player || !player.pixelated) { pl = null; return; }
+    pl ??= { m: 1, p: (hasZones(w) ? modeOfBox(w, player.x, player.y, PLAYER_W, PLAYER_H) : w.mode) === 'low' ? 1 : 0 };
+    move(pl, 1);
   }
 
   function push(next) {
@@ -78,9 +117,38 @@ export function createLook() {
     target = next;
   }
 
-  function update(w, dt = 0) {
+  function update(w, dt = 0, player = null) {
     if (w !== world) snap(w);                                  // a new room, a restart: no transition
-    if (!w || !w.slider) return;
+    if (!w) return;
+    if (!w.slider && !w.res && (hasZones(w) || tiles)) {       // zones: every tile's picture eases to its own mode (the wave's columns, a burst)
+      const zoned = hasZones(w);
+      if (zoned) ensureModes(w);
+      const n = w.width * w.height, base = w.mode === 'low' ? 1 : 0;
+      if (!tiles || tiles.length !== n) { tiles = new Float32Array(n); for (let i = 0; i < n; i++) tiles[i] = zoned ? w.tmode[i] : base; }
+      const d = Math.min(Math.max(dt, 0), MAX_DT) / SWAP_TOTAL;
+      moving = 0;
+      for (let i = 0; i < n; i++) {
+        const to = zoned ? w.tmode[i] : base, v = tiles[i];
+        if (v === to) continue;
+        tiles[i] = to > v ? Math.min(1, v + d) : Math.max(0, v - d);
+        if (tiles[i] !== to) moving++;
+      }
+      if (!zoned && moving === 0) tiles = null;                // the last zone is gone and its tiles are back: the plain room again
+      mode = w.mode; swap = null;
+      follow(w, dt, player);
+      return;
+    }
+    if (!w.slider) {                                           // the swap: the picture eases to the new mode (straight back: from where it is)
+      if (w.mode !== mode) { mode = w.mode; swap ??= { p: mode === 'low' ? 0 : 1, from: mode === 'low' ? '8bit' : 'low', snap: last }; }
+      if (swap) {
+        const d = Math.min(Math.max(dt, 0), MAX_DT) / SWAP_TOTAL;
+        swap.p += mode === 'low' ? d : -d;
+        if (mode === 'low' ? swap.p >= 1 : swap.p <= 0) swap = null;
+      }
+      if (!w.res) follow(w, dt, player);
+      if (!swap && Array.isArray(w.crates) && Array.isArray(w.balls) && Array.isArray(w.props)) last = copyThings(w);
+      return;
+    }
     const step = w.slider.step;
     if (step !== target) {                                     // the rules moved: walk the picture there one notch at a time
       let i = idx(target);
@@ -109,7 +177,19 @@ export function createLook() {
     return { fine, coarse, p, ...phases(p) };
   }
 
-  return { update, view, get busy() { return cur !== null; }, get pending() { return queue.length; } };
+  // A level without the slider, while its picture eases after a swap: { p } (0 = the 8-bit picture, 1 = the low-res one); else null.
+  // `from` is the mode the room swapped out of and `snap` its movable things as they were then (null when not known).
+  const swapView = (w = world) => (w && w === world && swap ? { p: swap.p, from: swap.from, snap: swap.snap ?? null } : null);
+
+  // A level with zones while some tiles' pictures ease: the Float32Array of every tile (0 = 8-bit ... 1 = low-res); else null.
+  const tileView = (w = world) => (w && w === world && tiles && moving > 0 ? tiles : null);
+
+  // One figure while its picture eases: how far it is (0 = 8-bit ... 1 = low-res), else null.
+  const part = (w, rec) => (w && w === world && rec && rec.p > 0 && rec.p < 1 ? rec.p : null);
+  const thingEase = (w, t) => part(w, things.get(t));
+  const playerEase = (w = world) => part(w, pl);
+
+  return { update, view, swapView, tileView, thingEase, playerEase, get busy() { return cur !== null; }, get pending() { return queue.length; } };
 }
 
 // The view of a slider world with no look kept (nobody passed one): at rest on its step.

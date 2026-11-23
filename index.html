@@ -125,15 +125,15 @@
   #slider { position: fixed; z-index: 2; right: 12px; top: 50%; width: 76px; height: 220px; margin-top: -110px; }
   @media not all and (pointer: coarse) { body.has-slider { --gutter-r: 100px; } }
   @media (pointer: coarse) {
-    /* Side gutters hold the buttons so they never cover the picture. Left: a 168px gutter kept empty
-       (the floating stick covers the left half of the screen). Right: one 72px column + 2 x 12px = 96px (JUMP and SWAP stacked
+    /* Side gutters hold the buttons so they never cover the picture. Left: a 168px gutter for the d-pad
+       (144px across, 12px from the corner; src/dpad.js draws it in its zone). Right: one 72px column + 2 x 12px = 96px (JUMP and SWAP stacked
        at 12 / 96px from the bottom, restart at the top). The stack is 168px tall, so it
        fits a 375px phone with the 44px restart button above it. */
     :root {
       --gutter-l: calc(168px + env(safe-area-inset-left, 0px));
       --gutter-r: calc(96px + env(safe-area-inset-right, 0px));
     }
-    /* The floating stick: the left half of the screen, under the buttons. A ring and knob show only while a finger is down. */
+    /* The d-pad's zone: the left half of the screen, under the buttons. The pad sits at its bottom left. */
     #stick-zone { display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 50vw; z-index: 1; touch-action: none; }
     .touch {
       display: flex; align-items: center; justify-content: center;

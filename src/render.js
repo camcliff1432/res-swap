@@ -22,6 +22,9 @@ import { hasZones, ensureModes, modeOfBox, baseStep, maskOfStep, zoneStep } from
 import { dyingReport, deathOffset } from './sim.js';
 import { drawGrenades } from './grenadeDraw.js';
 import { lookView, renderSlider, drawPlayerCrisp } from './renderSlider.js';
+import { gridOrigin } from './sliderLook.js';
+import { easeSprite } from './easeSprite.js';
+import { bandPlan, drawBands } from './edgeBands.js';
 
 const W = VIEW_W * PX8, H = VIEW_H * PX8;
 const WAVE_LINE = '#A4FCFC';
@@ -100,11 +103,141 @@ function drawFlash(ctx, tiles, ox, oy) {
   }
 }
 
+// ---- the swap's picture (a level without the slider, no zones) -------------------------------------------------------------
+// When the whole room swaps, the picture does not cut: for a moment (sliderLook.js swapView, p from 0 = 8-bit to 1 = low-res) the
+// 8-bit picture is seen in blocks of 2 x 2 pixels, then 4 x 4, then 8 x 8 (each block the average of its pixels, as the slider's
+// move blurs), each fading into the next, and the last fades into the low-res picture. Back to 8-bit it plays backwards. The
+// blocks are locked to the level's grid. The rules have changed already: both pictures are of the world as it is now.
+let swapSet = null;
+const M = PX8;                // the eased pictures are drawn from a tile edge, a tile bigger each way
+function swapPics() {
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return { canvas: c, ctx: c.getContext('2d') }; };
+  return (swapSet ??= { pics: [mk(W + M, H + M), mk((W + M) / 2, (H + M) / 2), mk((W + M) / 4, (H + M) / 4), mk((W + M) / 8, (H + M) / 8)], low: mk(W, H), base: mk(W + M, H + M) });
+}
+// The 8-bit picture an easing starts from (or ends at) is of a room that is 8-bit everywhere: things that only show in 8-bit (a laser's
+// beam, a ladder) are in it, so they blur away with the rest instead of being gone at once. For the drawing the world answers
+// "8-bit" for every tile; nothing else about it changes.
+let zeroModes = null;
+function as8bit(world, fn) {
+  const keep = { mode: world.mode, tmode: world.tmode, base: world.tmodeBase, has8: world.has8 };
+  world.mode = '8bit';
+  if (keep.tmode) {
+    if (!zeroModes || zeroModes.length !== keep.tmode.length) zeroModes = new Uint8Array(keep.tmode.length);
+    world.tmode = zeroModes; world.tmodeBase = '8bit'; world.has8 = true;
+  }
+  try { fn(); } finally { world.mode = keep.mode; world.tmode = keep.tmode; world.tmodeBase = keep.base; world.has8 = keep.has8; }
+}
+function halveInto(from, to) {                                 // a 2 x 2 average of the picture before
+  to.ctx.imageSmoothingEnabled = true;
+  to.ctx.imageSmoothingQuality = 'low';
+  to.ctx.drawImage(from.canvas, 0, 0, from.canvas.width, from.canvas.height, 0, 0, to.canvas.width, to.canvas.height);
+}
+
+// The same easing tile by tile, in a level with zones (sliderLook.js tileView: how far each tile's picture is): a column the wave
+// has just taken, the tiles of a burst, a window that has just swapped. The picture is the compositor's (the 8-bit picture with
+// the low-res one over the low-res tiles), and every tile on its way is drawn over it from the block pictures, as renderSwap fades.
+function renderEasing(ctx, world, player, cam, opts, tiles, flash) {
+  ensureModes(world);
+  const { pics, low, base } = swapPics();
+  const ox = px(cam.x), oy = px(cam.y);
+  const gx = gridOrigin(ox, PX8), gy = gridOrigin(oy, PX8);
+  const inner = { player: false, overlays: false };
+  const cam8 = { x: gx.origin / PX8, y: gy.origin / PX8 };
+  render8(base.ctx, world, player, cam8, { ...inner, extra: M });              // the room as it is: under everything
+  as8bit(world, () => render8(pics[0].ctx, world, player, cam8, { ...inner, extra: M }));   // and all 8-bit: what the easing tiles blur from
+  for (let k = 1; k <= 3; k++) halveInto(pics[k - 1], pics[k]);
+  low.ctx.clearRect(0, 0, W, H);
+  renderLow(low.ctx, world, player, cam, inner);
+  const keep = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(base.canvas, -gx.offset, -gy.offset);
+  for (const r of survey(world, ox, oy).runs) ctx.drawImage(low.canvas, r.x, r.y, r.w, PX8, r.x, r.y, r.w, PX8);
+  const tx0 = Math.max(0, Math.floor(ox / PX8)), tx1 = Math.min(world.width - 1, Math.floor((ox + W - 1) / PX8));
+  const ty0 = Math.max(0, Math.floor(oy / PX8)), ty1 = Math.min(world.height - 1, Math.floor((oy + H - 1) / PX8));
+  for (let ty = ty0; ty <= ty1; ty++) {
+    for (let tx = tx0; tx <= tx1; tx++) {
+      const p = tiles[ty * world.width + tx];
+      if (p <= 0 || p >= 1) continue;
+      const s = Math.min(3.999, p * 4), i = Math.floor(s), f = s - i;
+      const x = tx * PX8 - ox, y = ty * PX8 - oy, sx = tx * PX8 - gx.origin, sy = ty * PX8 - gy.origin;
+      for (const [k, alpha] of [[i, 1], [i + 1, f]]) {
+        if (alpha <= 0) continue;
+        ctx.globalAlpha = alpha;
+        if (k === 4) ctx.drawImage(low.canvas, x, y, PX8, PX8, x, y, PX8, PX8);
+        else { const b = 1 << k; ctx.drawImage(pics[k].canvas, sx / b, sy / b, PX8 / b, PX8 / b, x, y, PX8, PX8); }
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = keep;
+  drawFrames(ctx, world, ox, oy);
+  drawWaveEdges(ctx, world, ox);
+  if (flash) drawFlash(ctx, flash, ox, oy);
+  if (!opts.hidePlayer) {
+    const look = hasZones(world) ? modeOfBox(world, player.x, player.y, PLAYER_W, PLAYER_H) : world.mode;
+    (look === '8bit' ? drawPlayer8 : drawPlayerLow)(ctx, player, cam);
+  }
+  if (world.has8) drawOverlays8(ctx, world, player);
+}
+
+// A picture drawn with the movable things as a snapshot has them (sliderLook.js swapView's `snap`), for the time it takes to draw.
+function withThings(world, snap, fn) {
+  const keep = { crates: world.crates, balls: world.balls, props: world.props };
+  Object.assign(world, snap);
+  try { fn(); } finally { Object.assign(world, keep); }
+}
+function asLow(world, fn) {
+  const keep = world.mode;
+  world.mode = 'low';
+  try { fn(); } finally { world.mode = keep; }
+}
+
+function renderSwap(ctx, world, player, cam, opts, view) {
+  const p = view.p;
+  // The picture of the mode the room left shows the things where they were just before the swap.
+  const old = (mode, fn) => (view.snap && view.from === mode ? withThings(world, view.snap, fn) : fn());
+  const { pics, low } = swapPics();
+  const gx = gridOrigin(px(cam.x), PX8), gy = gridOrigin(px(cam.y), PX8);
+  const inner = { player: !opts.hidePlayer, overlays: false };
+  const s = Math.min(3.999, Math.max(0, p * 4)), i = Math.floor(s), f = s - i;      // four fades: 1 > 2 > 4 > 8 > low-res
+  old('8bit', () => as8bit(world, () => render8(pics[0].ctx, world, player, { x: gx.origin / PX8, y: gy.origin / PX8 }, { ...inner, extra: M })));
+  for (let k = 1; k <= Math.min(3, i + 1); k++) halveInto(pics[k - 1], pics[k]);   // the halvings needed
+  if (i === 3) old('low', () => asLow(world, () => renderLow(low.ctx, world, player, cam, inner)));
+  const keep = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  const put = (k, alpha) => {
+    if (alpha <= 0) return;
+    ctx.globalAlpha = alpha;
+    if (k === 4) ctx.drawImage(low.canvas, 0, 0);
+    else ctx.drawImage(pics[k].canvas, 0, 0, pics[k].canvas.width, pics[k].canvas.height, -gx.offset, -gy.offset, W + M, H + M);
+  };
+  put(i, 1);
+  put(i + 1, f);
+  ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = keep;
+}
+
 // The world as the player sees it, then the grenades' extras on top: the areas' dashed frames, the grenades in flight and
 // the held count (grenadeDraw.js).
 export function render(ctx, world, player, cam = { x: 0, y: 0 }, opts = {}) {
-  renderWorld(ctx, world, player, cam, opts);
-  drawGrenades(ctx, world, cam);
+  // A player an orange grenade caught is drawn in his low-res look wherever he is (world.js pixelateThings), here, on top; his figure
+  // eases there from the look he had (sliderLook.js playerEase).
+  const lowLook = !opts.hidePlayer && player.pixelated === true && !world.slider && !world.res;
+  const pe = lowLook && opts.look && opts.look.playerEase ? opts.look.playerEase(world) : null;
+  // The things at a zone's edge (edgeBands.js): the part of each on the low-res side goes down by steps as it goes in.
+  const bands = bandPlan(world, player, opts);
+  renderWorld(ctx, world, player, cam, lowLook || (bands && bands.player) ? { ...opts, hidePlayer: true } : opts);
+  if (bands) {
+    drawBands(ctx, world, player, cam, bands);
+    drawFrames(ctx, world, px(cam.x), px(cam.y));              // (the frames and the wave's lines again, over the repainted tiles)
+    drawWaveEdges(ctx, world, px(cam.x));
+  }
+  if (pe === null && lowLook) drawPlayerLow(ctx, player, cam);
+  if (pe !== null) {
+    const x = px(player.x) - PX8, y = px(player.y) - PX8;      // the scratch square: a tile round him
+    easeSprite(ctx, pe, x - px(cam.x), y - px(cam.y), 4 * PX8, (s) => drawPlayer8(s, player, { x: x / PX8, y: y / PX8 }), () => drawPlayerLow(ctx, player, cam));
+  }
+  drawGrenades(ctx, world, cam, opts.look);
 }
 
 function renderWorld(ctx, world, player, cam, opts) {
@@ -118,6 +251,15 @@ function renderWorld(ctx, world, player, cam, opts) {
       if (flash) drawFlash(ctx, flash, px(cam.x), px(cam.y));
       return;
     }
+  }
+  const easing = !world.slider && !world.res && opts.look && opts.look.tileView ? opts.look.tileView(world) : null;
+  if (easing) { renderEasing(ctx, world, player, cam, opts, easing, flash); return; }   // zones: some tiles' pictures are on their way
+  const swap = !world.slider && !zoned && opts.look && opts.look.swapView ? opts.look.swapView(world) : null;
+  if (swap) {                                          // the room has just swapped: its picture eases (renderSwap)
+    renderSwap(ctx, world, player, cam, opts, swap);
+    if (flash) drawFlash(ctx, flash, px(cam.x), px(cam.y));
+    if (world.mode === '8bit') drawOverlays8(ctx, world, player);
+    return;
   }
   if (!zoned && !flash && !opts.hidePlayer) {          // the old game: one picture, straight onto the canvas
     (world.mode === '8bit' ? render8 : renderLow)(ctx, world, player, cam);

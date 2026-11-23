@@ -101,7 +101,7 @@
     },
     {
       "folder": "7 Controlled swaps",
-      "open": false,
+      "open": true,
       "intro": "The scientists are learning more about how reality is woven. The mobile device can now use the energies inherent in the fabric of reality to power itself for unlimited resolution swapping.",
       "levels": [
         "01-spikes",
@@ -139,7 +139,7 @@
     },
     {
       "folder": "9 Slider",
-      "open": false,
+      "open": true,
       "intro": "Scientists have surpassed the abilities of the alien technology and have gained access to new layers of reality.",
       "levels": [
         "slider-test",

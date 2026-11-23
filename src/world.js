@@ -379,8 +379,11 @@ export function snapForced(world, player, t) {
 // small crate, platform, blade) whose centre is within r tiles of (cx, cy) becomes low-res for good (`forceLow`, see zones.js thingMode): the same
 // change as entering low-res (snapped to whole tiles or one tile up, small crates grow, platforms and blades trade their boxes,
 // momentum kept), but whatever the mode of its tile. All together first; if the places are not free, one by one, and a thing
-// that still cannot is left as it is (nothing is overlapped or crushed). The player is never affected. Returns the things done.
+// that still cannot is left as it is (nothing is overlapped or crushed). Returns the things done.
+// The player caught in the circle keeps the low-res LOOK from then on (`player.pixelated`, until the room reloads): how he is drawn,
+// nothing else; no rule reads it.
 export function pixelateThings(world, player, area) {
+  if (player && Math.hypot(player.x + PLAYER_W / 2 - area.cx, player.y + PLAYER_H / 2 - area.cy) <= area.r) player.pixelated = true;
   const inside = [];
   eachMover(world, (t) => {
     if (t.forceLow) return;

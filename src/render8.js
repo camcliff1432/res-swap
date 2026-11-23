@@ -241,6 +241,9 @@ export function drawCrate(ctx, c, ox = 0, oy = 0) {
   });
 }
 
+// One ball's 8-bit sprite, its top-left at level pixel (px(b.x), px(b.y)) less (ox, oy).
+export function drawBall8(ctx, b, ox = 0, oy = 0) { paint(ctx, BALL, px(b.x) - ox, px(b.y) - oy); }
+
 // `opts`: { player: false } leaves the astronaut out and { overlays: false } the screen-space extras (key count, sign
 // text); the compositor (render.js) draws those itself, on top of the mixed picture. The slider look (renderSlider.js)
 // also uses { terrain: false } (sky and things, no terrain) and { extra: n } (things up to n pixels beyond the right and
@@ -268,8 +271,10 @@ export function render8(ctx, world, player, cam = { x: 0, y: 0 }, opts = {}) {
   if (back) ctx.drawImage(back, -ox, -oy);
   const group = lens && lens.group ? lens.group : (kind, thing, fn) => fn();   // one thing's picture (the slider look reduces it alone)
 
+  // Sprites are painted pixel by pixel, not blitted from their baked canvases: on one tablet a blitted sprite did not always
+  // show (first the walking figure, then the exit). The same picture, pixel for pixel.
   const draw = (img, x, y) => {
-    if (seen(x, y, img.width, img.height, ox, oy, vw, vh)) ctx.drawImage(img, x - ox, y - oy);
+    if (seen(x, y, img.width, img.height, ox, oy, vw, vh)) paint(ctx, img.sprite, x - ox, y - oy, img.flip);
   };
   const spikes = bake('spikes', SPIKES);
   for (const s of world.spikes) {
